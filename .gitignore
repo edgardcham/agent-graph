@@ -1,0 +1,28 @@
+# Virtual env
+.venv/
+
+# Ruff
+.ruff_cache/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pdb
+
+# Env/Secrets
+.env
+.env.*
+
+# macOS
+.DS_Store
+
+# Logs
+*.log
+
+# Node
+node_modules/
+
+# Poetry lock (optional)
+poetry.lock
