@@ -1,5 +1,6 @@
 """AgentGraph - Dead simple agent graphs"""
 
+from ._types import SupportsState, TState
 from .conditions import (
     all_conditions,
     any_conditions,
@@ -26,20 +27,30 @@ from .conditions import (
     not_condition,
     when,
 )
-from .graph import Graph
-from .node import START_NODE, END_NODE, Node, node, get_node
+from .graph import Graph, LoopDetected
+from .node import END_NODE, START_NODE, Node, RouterFunc, get_node, node, node_decorator
 from .state import BaseState, State
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 __all__ = [
+    # Core types
+    "TState",
+    "SupportsState",
+    "RouterFunc",
+    # State management
     "State",
     "BaseState",
+    # Node system
     "Node",
     "node",
+    "node_decorator",
     "get_node",
     "START_NODE",
     "END_NODE",
+    # Graph execution
     "Graph",
+    "LoopDetected",
+    # Conditions
     "when",
     "has_field",
     "field_exists",

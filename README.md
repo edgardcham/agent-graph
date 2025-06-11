@@ -1,8 +1,8 @@
-# AgentGraph v0.1.0
+# AgentGraph v0.2.0
 
 > **Dead simple agent graphs for Python** - Build AI workflows without the bloat
 
-A lightweight, type-safe library for creating agent workflows as executable graphs. AgentGraph provides the minimal primitives needed to create complex agent interactions with full transparency and zero magic.
+A lightweight, **fully type-safe** library for creating agent workflows as executable graphs. AgentGraph provides the minimal primitives needed to create complex agent interactions with full transparency and zero magic.
 
 ## 🚀 **Why AgentGraph?**
 
@@ -12,6 +12,7 @@ LangGraph got the concepts right but buried them under layers of abstraction. De
 - **⚡ Explicit over magic** - See exactly how state flows through the system
 - **🪶 Lightweight over comprehensive** - 500 lines of code, not 50,000
 - **🎨 Patterns over frameworks** - Learn once, apply everywhere
+- **🔒 Type safety first** - Full generic support with IDE autocomplete
 
 ## 📦 **Installation**
 
@@ -28,29 +29,150 @@ pip install agentgraph
 ```python
 from agentgraph import Graph, node, State, START_NODE, END_NODE
 
-@node("greet")
+# NEW v0.2.0: Clean node creation
 def greet_user(state: State) -> State:
     return state.update(message=f"Hello, {state.name}!")
 
-@node("process")
 def process_greeting(state: State) -> State:
     return state.update(processed=True, result=state.message.upper())
 
-# Build the graph
-g = Graph()
-g.add_node(greet_user)
-g.add_node(process_greeting)
+# Create nodes with simple syntax
+greet = node(greet_user, "greet")
+process = node(process_greeting, "process")
 
-# Define the flow
-g.add_edge(START_NODE, "greet")      # Sets entry point
-g.add_edge("greet", "process")
-g.add_edge("process", END_NODE)      # Clean termination
+# Build the graph (with type safety)
+g = Graph[State]()
+g.add_node(greet)
+g.add_node(process)
+
+# Define the flow (now with add_path helper!)
+g.add_path(START_NODE, greet, process, END_NODE)
 
 # Execute
 initial = State({"name": "World"})
 result = g.run(initial)
 
 print(result.result)  # "HELLO, WORLD!"
+```
+
+## ✨ **What's New in v0.2.0**
+
+### **🔒 Full Type Safety**
+
+```python
+# Generic graphs with IDE autocomplete
+g = Graph[State]()           # For flexible dict-based state
+g = Graph[MyDataClass]()     # For typed dataclass state
+
+# Type-safe node functions
+@node("process")
+def my_node(state: MyState) -> MyState:  # Full type inference
+    return state.update(processed=True)
+```
+
+### **🎨 Clean Node Creation API**
+
+```python
+# NEW: Simple node creation - no more double calls!
+process = node(process_func)  # Clean and simple
+custom = node(process_func, "custom_name")  # With custom name
+
+# OLD: Awkward decorator pattern (still supported)
+@node("process")
+def process_func(state): ...
+```
+
+### **🛤️ Semantic Routing**
+
+```python
+# NEW: Routes with semantic keys
+def router(state: State) -> str:
+    return "high" if state.priority > 5 else "low"  # Semantic keys!
+
+g.add_conditional_edges(
+    source=validate,
+    router=router,
+    routes={
+        "high": process_high,    # Map semantic keys to nodes
+        "low": process_low,
+    }
+)
+
+# Supports enums for type safety
+class Priority(Enum):
+    HIGH = "high"
+    LOW = "low"
+
+def enum_router(state: State) -> Priority:
+    return Priority.HIGH if state.priority > 5 else Priority.LOW
+```
+
+### **📊 Enhanced Visualization**
+
+```python
+# Generate Mermaid diagrams
+print(g.visualize())  # Default: returns mermaid text
+
+# NEW: Generate images directly
+g.visualize("png", "workflow.png")  # Save as PNG
+g.visualize("svg", view=True)       # Generate SVG and open it
+g.visualize("pdf", "report.pdf")    # Export as PDF
+```
+
+### **🛤️ Linear Path Helper**
+
+```python
+# Before: Verbose edge definitions
+g.add_edge(START_NODE, "fetch")
+g.add_edge("fetch", "validate") 
+g.add_edge("validate", "transform")
+g.add_edge("transform", "report")
+g.add_edge("report", END_NODE)
+
+# After: Clean linear paths
+g.add_path(START_NODE, "fetch", "validate", "transform", "report", END_NODE)
+```
+
+### **🚀 Loop Detection**
+
+```python
+# NEW: Better error handling for infinite loops
+try:
+    result = g.run(state, max_steps=50)
+except LoopDetected as e:
+    print(f"Loop detected after {e.max_steps} steps")
+    print(f"Recent path: {' → '.join(e.visited_nodes[-10:])}")
+```
+
+### **🎯 Enhanced Developer Experience**
+
+- **IDE Autocomplete**: Full IntelliSense support for all state properties
+- **Type Checking**: Catch errors at development time, not runtime (0 pyright errors!)
+- **Generic Conditions**: All 25+ condition helpers now type-aware
+- **Registry Isolation**: Each graph maintains its own node registry
+- **Clean Visualizations**: No duplicate edges, proper conditional routing display
+
+### **Summary: v0.2.0 Makes AgentGraph Even Simpler**
+
+```python
+# Clean node creation
+process = node(process_func)
+
+# Semantic routing
+g.add_conditional_edges(
+    source=validate,
+    router=lambda s: "high" if s.score > 0.8 else "low",
+    routes={"high": fast_track, "low": review}
+)
+
+# Better debugging
+try:
+    result = g.run(state, max_steps=50)
+except LoopDetected as e:
+    print(f"Loop at step {e.max_steps}: {e.visited_nodes[-5:]}")
+
+# Rich visualization
+g.visualize("png", "workflow.png")  # Generate images!
 ```
 
 ## 🏗️ **Core Components**
@@ -129,7 +251,7 @@ from agentgraph import Node
 custom_node = Node(lambda state: state.update(custom=True), "custom")
 
 # All patterns work with the same API
-g = Graph()
+g = Graph[State]()
 g.add_node(process_data)      # Uses "processor" name
 g.add_node(analyze_results)   # Uses "analyze_results" name
 g.add_node(custom_node)       # Uses "custom" name
@@ -137,18 +259,22 @@ g.add_node(custom_node)       # Uses "custom" name
 
 ### **3. Graph Construction**
 
-#### **Linear Workflows**
+#### **Linear Workflows (New v0.2.0 Way!)**
 
 ```python
-g = Graph()
+g = Graph[State]()
 g.add_node(fetch_data)
 g.add_node(validate_data)
 g.add_node(process_data)
 
-g.add_edge(START_NODE, "fetch_data")
-g.add_edge("fetch_data", "validate_data")
-g.add_edge("validate_data", "process_data")
-g.add_edge("process_data", END_NODE)
+# Clean linear path (v0.2.0)
+g.add_path(START_NODE, "fetch_data", "validate_data", "process_data", END_NODE)
+
+# Or traditional edges (still supported)
+# g.add_edge(START_NODE, "fetch_data")
+# g.add_edge("fetch_data", "validate_data")
+# g.add_edge("validate_data", "process_data")
+# g.add_edge("process_data", END_NODE)
 ```
 
 #### **Conditional Routing**
@@ -171,7 +297,7 @@ def handle_standard(state: State) -> State:
 def route_by_type(state: State) -> str:
     return f"{state.request_type}_handler"
 
-g = Graph()
+g = Graph[State]()
 g.add_node(classify_request)
 g.add_node(handle_premium)
 g.add_node(handle_standard)
@@ -182,26 +308,39 @@ g.add_edge("premium_handler", END_NODE)
 g.add_edge("standard_handler", END_NODE)
 ```
 
-#### **Advanced Routing with Path Mapping**
+#### **Advanced Routing with Semantic Keys (v0.2.0)**
 
 ```python
-def semantic_router(state: State) -> str:
-    # Returns semantic names
-    if state.confidence > 0.8:
-        return "high_confidence"
-    elif state.confidence > 0.5:
-        return "medium_confidence"
-    else:
-        return "low_confidence"
+from enum import Enum
 
-# Map semantic names to actual node names
+# Define semantic routing keys
+class ConfidenceLevel(Enum):
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+
+# Create nodes with clean API
+fast_process = node(fast_process_func, "fast")
+careful_process = node(careful_process_func, "careful")
+manual_review = node(manual_review_func, "manual")
+
+# Router returns semantic keys
+def confidence_router(state: State) -> str:
+    if state.confidence > 0.8:
+        return ConfidenceLevel.HIGH.value
+    elif state.confidence > 0.5:
+        return ConfidenceLevel.MEDIUM.value
+    else:
+        return ConfidenceLevel.LOW.value
+
+# Map semantic keys to nodes (NEW!)
 g.add_conditional_edges(
-    "classifier",
-    semantic_router,
-    path_map={
-        "high_confidence": "fast_processor",
-        "medium_confidence": "careful_processor",
-        "low_confidence": "manual_review"
+    source=classifier,
+    router=confidence_router,
+    routes={
+        ConfidenceLevel.HIGH.value: fast_process,
+        ConfidenceLevel.MEDIUM.value: careful_process,
+        ConfidenceLevel.LOW.value: manual_review
     }
 )
 ```
@@ -355,7 +494,7 @@ def route_by_size(state: State) -> str:
     return "process_small" if state.user_count < 100 else "process_large"
 
 # Build graph
-g = Graph()
+g = Graph[State]()
 g.add_node(fetch_data)
 g.add_node(validate_data)
 g.add_node(process_small_dataset)
@@ -432,7 +571,7 @@ def route_by_assignment(state: ProcessingState) -> str:
     return f"{state.assigned_to.replace('_team', '')}_process"
 
 # Build graph
-g = Graph()
+g = Graph[ProcessingState]()
 g.add_node(triage_task)
 g.add_node(senior_process)
 g.add_node(regular_process)
@@ -495,7 +634,7 @@ graph.add_edge(START, "agent")
 graph.add_edge("agent", END)
 
 # AgentGraph style
-g = Graph()
+g = Graph[State]()
 g.add_node(agent_node)  # Function passed directly
 g.add_edge(START_NODE, "agent_node")  # Explicit node objects
 g.add_edge("agent_node", END_NODE)
@@ -507,14 +646,37 @@ g.add_edge("agent_node", END_NODE)
 
 - **`State(data: dict)`** - Flexible dictionary-based state
 - **`BaseState`** - Type-safe dataclass-based state
-- **`Node(func, name)`** - Graph node wrapper
-- **`Graph()`** - Graph executor
+- **`Node[TState](func, name)`** - Generic graph node wrapper
+- **`Graph[TState]()`** - Type-safe graph executor
 - **`START_NODE`** - Graph entry point marker
 - **`END_NODE`** - Graph termination marker
+- **`LoopDetected`** - Exception raised when execution loops
+
+### **Node Creation** ✨ **NEW v0.2.0**
+
+- **`node(func, name=None)`** - Create node from function (simple factory)
+- **`node_decorator(name=None)`** - Decorator pattern for nodes
+- **`get_node(name)`** - Retrieve node from registry
+
+### **Type System** ✨ **NEW v0.2.0**
+
+- **`TState`** - Generic type variable for state objects
+- **`SupportsState`** - Protocol for state duck typing
+- **`RouterFunc[TState]`** - Type alias for routing functions
+
+### **Graph Methods**
+
+- **`add_node(node)`** - Add node to graph
+- **`add_edge(source, target)`** - Add direct edge
+- **`add_path(*nodes)`** - Add linear path through nodes
+- **`add_conditional_edges(source, router, routes=None)`** - Add conditional routing
+- **`run(state, max_steps=100)`** - Execute graph
+- **`stream(state)`** - Stream execution results
+- **`visualize(format="mermaid", filename=None, view=False)`** - Generate visualization
 
 ### **Decorators**
 
-- **`@node(name)`** - Convert function to named node
+- **`@node_decorator(name)`** - Convert function to named node
 - **`@custom_condition(name)`** - Create named condition
 
 ### **Condition Helpers**
@@ -526,23 +688,36 @@ g.add_edge("agent_node", END_NODE)
 
 ## 🚧 **Roadmap**
 
-### **v0.2.0 - Intelligence (Coming Soon)**
+### **v0.2.0 - Type Safety & Developer Experience** ✅ **CURRENT**
+
+- ✅ Full generic type system (`Graph[TState]`, `Node[TState]`)
+- ✅ Clean node creation API (`node(func, name)`)
+- ✅ Semantic routing with `routes` parameter
+- ✅ Enhanced visualization (PNG/SVG/PDF support)
+- ✅ Loop detection with helpful errors
+- ✅ Registry isolation (graph-local registries)
+- ✅ Linear path helper (`add_path()`)
+- ✅ 0 type errors with full pyright/mypy compatibility
+
+### **v0.3.0 - Intelligence & AI Integration**
 
 - AI node integration with LLM support
 - Dynamic routing with AI decision making
 - Enhanced visualization tools
+- Streaming execution improvements
 
-### **v0.3.0 - Tools & Integration**
+### **v0.4.0 - Tools & Integration**
 
 - Tool calling system
 - MCP (Model Context Protocol) support
 - External service integrations
 
-### **v0.4.0 - Advanced Features**
+### **v0.5.0 - Advanced Features**
 
 - Parallel execution support
 - Subgraph composition
 - Advanced streaming capabilities
+- Performance benchmarks and optimization
 
 ## 🤝 **Contributing**
 
@@ -559,6 +734,8 @@ MIT License - see [LICENSE](LICENSE) for details.
 - **🧪 Testable**: Pure functions and immutable state
 - **📈 Scalable**: From simple scripts to complex workflows
 - **🎨 Pythonic**: Feels natural to Python developers
+- **🔒 Type-Safe**: Full IDE support with generic type system ✨ **NEW**
+- **🛤️ Ergonomic**: Clean linear workflows with `add_path()` ✨ **NEW**
 
 ---
 

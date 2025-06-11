@@ -1,31 +1,27 @@
-from typing import Any, Callable, List, Optional, Union, TypeVar
+from typing import Any, Callable, Dict, Generic, List, Optional, Union
 
-from .state import BaseState, State
-
-StateType = Union[State, BaseState]
-T = TypeVar('T', bound=StateType)
+from ._types import TState
 
 # Global registry for nodes created with decorators
-_node_registry: dict[str, 'Node'] = {}
+_node_registry: Dict[str, "Node[Any]"] = {}
 
 
-class Node:
-    """Base node class"""
+class Node(Generic[TState]):
+    """Base node class with generic state type support."""
 
     def __init__(
         self,
-        func: Callable[[Any], Any],
+        func: Callable[[TState], TState],
         name: Optional[str] = None,
     ):
         self.func = func
         self.name = name or func.__name__
-        self._metadata: dict[str, Any] = {}
-        
-        # Register node if it has a name
-        if self.name:
-            _node_registry[self.name] = self
+        self._metadata: Dict[str, Any] = {}
 
-    def __call__(self, state: Any) -> Any:
+        # Note: No automatic registration to avoid graph collisions
+        # Registration is handled by the @node decorator or graph.add_node()
+
+    def __call__(self, state: TState) -> TState:
         """Execute node function"""
         return self.func(state)
 
@@ -33,45 +29,78 @@ class Node:
         return f"Node({self.name})"
 
 
-def node(
-    name: Optional[str] = None,
-) -> Callable[[Callable[[Any], Any]], Node]:
-    """Decorator for creating nodes"""
+def node(func: Callable[[TState], TState], name: Optional[str] = None) -> Node[TState]:
+    """Create a node from a function.
 
-    def decorator(func: Callable[[Any], Any]) -> Node:
-        return Node(func, name)
+    Args:
+        func: Function that transforms state
+        name: Optional node name (defaults to function name)
+
+    Returns:
+        Node instance
+
+    Example:
+        fetch = ag.node(fetch_func)
+        process = ag.node(process_func, "processor")
+    """
+    return Node(func, name or func.__name__)
+
+
+def node_decorator(
+    name: Optional[str] = None, *, registry: Optional[Dict[str, Any]] = None
+) -> Callable[[Callable[[TState], TState]], Node[TState]]:
+    """Decorator for creating nodes.
+
+    Example:
+        @ag.node_decorator("processor")
+        def process(state):
+            return state.update(processed=True)
+    """
+
+    def decorator(func: Callable[[TState], TState]) -> Node[TState]:
+        node_instance = Node(func, name)
+
+        # Register in the specified registry, or global by default
+        target_registry = registry if registry is not None else _node_registry
+        target_registry[node_instance.name] = node_instance
+
+        return node_instance
 
     return decorator
 
 
-def get_node(name: str) -> Optional[Node]:
+def get_node(
+    name: str, registry: Optional[Dict[str, Any]] = None
+) -> Optional[Node[Any]]:
     """Get a node from the registry by name"""
+    if registry is not None:
+        return registry.get(name)
     return _node_registry.get(name)
 
 
 class SpecialNode:
     """Base class for special nodes"""
-    
+
     def __init__(self, name: str):
         self.name = name
-    
+
     def __call__(self, state: Any) -> Any:
         return state
-    
+
     def __repr__(self) -> str:
         return self.name
 
 
 class START(SpecialNode):
     """Special node to signal start of execution"""
-    
+
     def __init__(self):
         super().__init__("START")
 
 
 class END(SpecialNode):
     """Special node to signal end of execution"""
-    
+
     def __init__(self):
         super().__init__("END")
 
@@ -81,5 +110,5 @@ START_NODE = START()
 END_NODE = END()
 
 
-# Type for conditional routing functions  
-RouterFunc = Callable[[Any], Union[str, List[str], None]]
+# Type for conditional routing functions - now generic
+RouterFunc = Callable[[TState], Union[str, List[str], None]]
