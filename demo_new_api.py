@@ -21,7 +21,7 @@ def main():
     def first_func(state: AgentState) -> AgentState:
         print("Executing first node")
         return state.update(power=0)
-    
+
     def second_func(state: AgentState) -> AgentState:
         print("Executing second node")
         if random.random() < 0.5:
@@ -64,7 +64,7 @@ def main():
     # Direct node references in edges
     g.add_edge(START_NODE, first)
     g.add_edge(first, second)
-    
+
     # NEW: Semantic routing with routes mapping
     def router(state: AgentState) -> str:
         # Return semantic keys, not node names!
@@ -74,11 +74,11 @@ def main():
         source=second,
         router=router,
         routes={
-            "saiyan": goku,   # Semantic key -> node
+            "saiyan": goku,  # Semantic key -> node
             "prince": vegeta,
-        }
+        },
     )
-    
+
     # Or could use add_path for linear sections
     g.add_path(goku, report, END_NODE)
     g.add_path(vegeta, report, END_NODE)
@@ -89,7 +89,7 @@ def main():
 
     print("\nMermaid visualization:")
     print(g.visualize())
-    
+
     # Generate image
     print("\nImage generated:", g.visualize(format="png"))
 
